@@ -136,7 +136,7 @@ class ImageService {
 
 		// Extract alt.
 		$alt_text = '';
-		if ( preg_match( '/alt=["\']([^"\']*)["\']?/i', $img_tag, $alt_match ) ) {
+		if ( preg_match( '/alt=["\']([^"\']*)["\'/i', $img_tag, $alt_match ) ) {
 			$alt_text = $alt_match[1];
 		}
 
@@ -232,12 +232,19 @@ class ImageService {
 	/**
 	 * Update alt text for an attachment.
 	 *
+	 * Note: This method returns true when the meta value is successfully stored,
+	 * including when the new value is the same as the existing value.
+	 * WordPress's update_post_meta returns true for new inserts, the meta_id
+	 * for updates, and false only on failure. We normalize this to boolean.
+	 *
 	 * @param int    $attachment_id Attachment ID.
 	 * @param string $alt_text      New alt text.
-	 * @return bool True on success, false on failure.
+	 * @return bool True on success (including when value unchanged), false on failure.
 	 */
 	public function update_alt_text( int $attachment_id, string $alt_text ): bool {
-		return (bool) update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
+		$result = update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
+		// update_post_meta returns false on failure, meta_id (int) on update, true on insert.
+		return false !== $result;
 	}
 
 	/**
@@ -292,6 +299,13 @@ class ImageService {
 	/**
 	 * Get posts with images missing alt text.
 	 *
+	 * This method uses a two-phase approach for efficiency:
+	 * 1. First, identify posts that have featured images without alt text using a direct DB query
+	 * 2. Then, paginate through posts that contain <img> tags in content and check for alt text issues
+	 *
+	 * Note: For sites with many posts, this may still require iterating through content.
+	 * Consider adding caching or background processing for very large sites.
+	 *
 	 * @param array $post_types Post types to search.
 	 * @param int   $limit      Maximum results.
 	 * @param int   $offset     Results offset.
@@ -304,27 +318,63 @@ class ImageService {
 	): array {
 		global $wpdb;
 
-		$post_types_in = "'" . implode( "','", array_map( 'esc_sql', $post_types ) ) . "'";
+		$placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 
-		// Get all published posts of specified types.
-		$posts_query = $wpdb->prepare(
-			"SELECT p.ID
+		// Phase 1: Get posts with featured images missing alt text (efficient DB query).
+		$featured_query = $wpdb->prepare(
+			"SELECT DISTINCT p.ID
 			FROM {$wpdb->posts} p
-			WHERE p.post_type IN ({$post_types_in})
+			INNER JOIN {$wpdb->postmeta} pm_thumb ON p.ID = pm_thumb.post_id AND pm_thumb.meta_key = '_thumbnail_id'
+			LEFT JOIN {$wpdb->postmeta} pm_alt ON pm_thumb.meta_value = pm_alt.post_id AND pm_alt.meta_key = '_wp_attachment_image_alt'
+			WHERE p.post_type IN ({$placeholders})
 			AND p.post_status = 'publish'
-			ORDER BY p.post_date DESC"
+			AND (pm_alt.meta_value IS NULL OR pm_alt.meta_value = '')",
+			$post_types
 		);
 
-		$all_post_ids = $wpdb->get_col( $posts_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$posts_with_featured_issues = $wpdb->get_col( $featured_query ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$posts_with_featured_issues = array_map( 'intval', $posts_with_featured_issues );
 
-		// Filter to posts that have images without alt text.
-		$posts_with_issues = array();
+		// Phase 2: Get posts that contain images in content (use LIKE for efficiency).
+		$content_query = $wpdb->prepare(
+			"SELECT p.ID
+			FROM {$wpdb->posts} p
+			WHERE p.post_type IN ({$placeholders})
+			AND p.post_status = 'publish'
+			AND p.post_content LIKE %s
+			ORDER BY p.post_date DESC",
+			array_merge( $post_types, array( '%<img%' ) )
+		);
 
-		foreach ( $all_post_ids as $post_id ) {
-			if ( $this->post_has_images_without_alt( (int) $post_id ) ) {
-				$posts_with_issues[] = (int) $post_id;
+		$posts_with_images = $wpdb->get_col( $content_query ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		// Combine: start with featured image issues, then check content images.
+		$posts_with_issues = $posts_with_featured_issues;
+
+		foreach ( $posts_with_images as $post_id ) {
+			$post_id = (int) $post_id;
+			// Skip if already in the list from featured image check.
+			if ( in_array( $post_id, $posts_with_issues, true ) ) {
+				continue;
+			}
+			// Check if content images have alt text issues.
+			if ( $this->post_has_content_images_without_alt( $post_id ) ) {
+				$posts_with_issues[] = $post_id;
 			}
 		}
+
+		// Sort by post date (most recent first) - get post dates for sorting.
+		usort(
+			$posts_with_issues,
+			function ( $a, $b ) {
+				$post_a = get_post( $a );
+				$post_b = get_post( $b );
+				if ( ! $post_a || ! $post_b ) {
+					return 0;
+				}
+				return strtotime( $post_b->post_date ) - strtotime( $post_a->post_date );
+			}
+		);
 
 		$total = count( $posts_with_issues );
 
@@ -335,6 +385,27 @@ class ImageService {
 			'posts' => $posts_with_issues,
 			'total' => $total,
 		);
+	}
+
+	/**
+	 * Check if a post has content images without alt text.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return bool True if has content images without alt text.
+	 */
+	private function post_has_content_images_without_alt( int $post_id ): bool {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			return false;
+		}
+
+		$content_images = $this->parse_content_images( $post->post_content );
+		foreach ( $content_images as $image ) {
+			if ( empty( $image['alt_text'] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

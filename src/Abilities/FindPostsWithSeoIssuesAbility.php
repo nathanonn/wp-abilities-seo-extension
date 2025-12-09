@@ -97,7 +97,7 @@ class FindPostsWithSeoIssuesAbility extends AbstractAbility {
 			$posts[] = array_merge(
 				$post_data,
 				array(
-					'seo_score'     => $score_data['seo_score'] ?: null,
+					'seo_score'     => $score_data['seo_score'] ?? null,
 					'issue_details' => $this->get_issue_details( $issue_type, $post_id, $score_threshold ),
 				)
 			);

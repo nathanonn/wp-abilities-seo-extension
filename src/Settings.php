@@ -206,12 +206,11 @@ class Settings {
 				continue;
 			}
 
-			$checked = in_array( $type->name, $selected, true ) ? 'checked' : '';
 			printf(
 				'<label><input type="checkbox" name="%s[post_types][]" value="%s" %s> %s (%s)</label><br>',
 				esc_attr( self::OPTION_KEY ),
 				esc_attr( $type->name ),
-				$checked,
+				checked( in_array( $type->name, $selected, true ), true, false ),
 				esc_html( $type->label ),
 				esc_html( $type->name )
 			);

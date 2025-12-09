@@ -101,37 +101,35 @@ class PostService {
 	): array {
 		global $wpdb;
 
-		$post_types_in = "'" . implode( "','", array_map( 'esc_sql', $post_types ) ) . "'";
+		$placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 
 		// Count total.
 		$count_query = $wpdb->prepare(
 			"SELECT COUNT(DISTINCT p.ID)
 			FROM {$wpdb->posts} p
 			LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = %s
-			WHERE p.post_type IN ({$post_types_in})
+			WHERE p.post_type IN ({$placeholders})
 			AND p.post_status = 'publish'
 			AND (pm.meta_value IS NULL OR pm.meta_value = '')",
-			$meta_key
+			array_merge( array( $meta_key ), $post_types )
 		);
 
-		$total = (int) $wpdb->get_var( $count_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$total = (int) $wpdb->get_var( $count_query ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		// Get posts.
 		$posts_query = $wpdb->prepare(
 			"SELECT DISTINCT p.ID
 			FROM {$wpdb->posts} p
 			LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = %s
-			WHERE p.post_type IN ({$post_types_in})
+			WHERE p.post_type IN ({$placeholders})
 			AND p.post_status = 'publish'
 			AND (pm.meta_value IS NULL OR pm.meta_value = '')
 			ORDER BY p.post_date DESC
 			LIMIT %d OFFSET %d",
-			$meta_key,
-			$limit,
-			$offset
+			array_merge( array( $meta_key ), $post_types, array( $limit, $offset ) )
 		);
 
-		$post_ids = $wpdb->get_col( $posts_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$post_ids = $wpdb->get_col( $posts_query ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		return array(
 			'posts' => array_map( 'intval', $post_ids ),
@@ -158,41 +156,37 @@ class PostService {
 	): array {
 		global $wpdb;
 
-		$post_types_in = "'" . implode( "','", array_map( 'esc_sql', $post_types ) ) . "'";
+		$placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 
 		// Count total.
 		$count_query = $wpdb->prepare(
 			"SELECT COUNT(DISTINCT p.ID)
 			FROM {$wpdb->posts} p
 			INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = %s
-			WHERE p.post_type IN ({$post_types_in})
+			WHERE p.post_type IN ({$placeholders})
 			AND p.post_status = 'publish'
 			AND CAST(pm.meta_value AS UNSIGNED) < %d
 			AND CAST(pm.meta_value AS UNSIGNED) > 0",
-			$meta_key,
-			$score_threshold
+			array_merge( array( $meta_key ), $post_types, array( $score_threshold ) )
 		);
 
-		$total = (int) $wpdb->get_var( $count_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$total = (int) $wpdb->get_var( $count_query ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		// Get posts ordered by score (lowest first).
 		$posts_query = $wpdb->prepare(
 			"SELECT DISTINCT p.ID, CAST(pm.meta_value AS UNSIGNED) as score
 			FROM {$wpdb->posts} p
 			INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = %s
-			WHERE p.post_type IN ({$post_types_in})
+			WHERE p.post_type IN ({$placeholders})
 			AND p.post_status = 'publish'
 			AND CAST(pm.meta_value AS UNSIGNED) < %d
 			AND CAST(pm.meta_value AS UNSIGNED) > 0
 			ORDER BY score ASC, p.post_date DESC
 			LIMIT %d OFFSET %d",
-			$meta_key,
-			$score_threshold,
-			$limit,
-			$offset
+			array_merge( array( $meta_key ), $post_types, array( $score_threshold, $limit, $offset ) )
 		);
 
-		$results  = $wpdb->get_results( $posts_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$results  = $wpdb->get_results( $posts_query ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$post_ids = array_map(
 			function ( $row ) {
 				return (int) $row->ID;

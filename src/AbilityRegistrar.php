@@ -220,7 +220,7 @@ class AbilityRegistrar {
 				'input_schema'        => GetSeoMetaAbility::get_input_schema(),
 				'output_schema'       => GetSeoMetaAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_post_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(
@@ -253,7 +253,7 @@ class AbilityRegistrar {
 				'input_schema'        => UpdateSeoMetaAbility::get_input_schema(),
 				'output_schema'       => UpdateSeoMetaAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_post_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(
@@ -287,7 +287,7 @@ class AbilityRegistrar {
 				'input_schema'        => GetSocialMetaAbility::get_input_schema(),
 				'output_schema'       => GetSocialMetaAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_post_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(
@@ -320,7 +320,7 @@ class AbilityRegistrar {
 				'input_schema'        => UpdateSocialMetaAbility::get_input_schema(),
 				'output_schema'       => UpdateSocialMetaAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_post_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(
@@ -391,7 +391,7 @@ class AbilityRegistrar {
 				'input_schema'        => GetSeoScoreAbility::get_input_schema(),
 				'output_schema'       => GetSeoScoreAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_post_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(
@@ -461,7 +461,7 @@ class AbilityRegistrar {
 				'input_schema'        => GetPostImagesAbility::get_input_schema(),
 				'output_schema'       => GetPostImagesAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_post_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(
@@ -494,7 +494,7 @@ class AbilityRegistrar {
 				'input_schema'        => UpdateImageAltTextAbility::get_input_schema(),
 				'output_schema'       => UpdateImageAltTextAbility::get_output_schema(),
 				'execute_callback'    => array( $ability, 'execute' ),
-				'permission_callback' => array( $this, 'check_edit_attachment_permission' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
 				'meta'                => array(
 					'show_in_rest' => true,
 					'mcp'          => array(

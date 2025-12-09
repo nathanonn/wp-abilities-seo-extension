@@ -23,7 +23,8 @@ class ImageService {
 	 *     content_images: array,
 	 *     total_images: int,
 	 *     images_with_alt: int,
-	 *     images_without_alt: int
+	 *     images_without_alt: int,
+	 *     images_orphaned: int
 	 * }
 	 */
 	public function get_post_images( int $post_id ): array {
@@ -36,6 +37,7 @@ class ImageService {
 				'total_images'       => 0,
 				'images_with_alt'    => 0,
 				'images_without_alt' => 0,
+				'images_orphaned'    => 0,
 			);
 		}
 
@@ -46,6 +48,7 @@ class ImageService {
 		$total_images       = count( $content_images ) + ( $featured_image ? 1 : 0 );
 		$images_with_alt    = 0;
 		$images_without_alt = 0;
+		$images_orphaned    = 0;
 
 		// Count featured image.
 		if ( $featured_image ) {
@@ -58,6 +61,11 @@ class ImageService {
 
 		// Count content images.
 		foreach ( $content_images as $image ) {
+			// Count orphaned images separately.
+			if ( ! empty( $image['is_orphaned'] ) ) {
+				++$images_orphaned;
+				continue;
+			}
 			if ( ! empty( $image['alt_text'] ) ) {
 				++$images_with_alt;
 			} else {
@@ -71,6 +79,7 @@ class ImageService {
 			'total_images'       => $total_images,
 			'images_with_alt'    => $images_with_alt,
 			'images_without_alt' => $images_without_alt,
+			'images_orphaned'    => $images_orphaned,
 		);
 	}
 
@@ -136,35 +145,49 @@ class ImageService {
 
 		// Extract alt.
 		$alt_text = '';
-		if ( preg_match( '/alt=["\']([^"\']*)["\'/i', $img_tag, $alt_match ) ) {
+		if ( preg_match( '/alt=["\']([^"\']*)["\']/', $img_tag, $alt_match ) ) {
 			$alt_text = $alt_match[1];
 		}
 
 		// Try to get attachment ID from class or data attribute.
-		$attachment_id = null;
+		$referenced_id = null;
 
 		// Check for wp-image-{id} class.
 		if ( preg_match( '/wp-image-(\d+)/i', $img_tag, $class_match ) ) {
-			$attachment_id = (int) $class_match[1];
+			$referenced_id = (int) $class_match[1];
 		}
 
 		// Check for data-id attribute.
-		if ( ! $attachment_id && preg_match( '/data-id=["\'](\d+)["\']/i', $img_tag, $data_match ) ) {
-			$attachment_id = (int) $data_match[1];
+		if ( ! $referenced_id && preg_match( '/data-id=["\'](\d+)["\']/i', $img_tag, $data_match ) ) {
+			$referenced_id = (int) $data_match[1];
 		}
 
 		// Try to get attachment ID from URL if still not found.
-		if ( ! $attachment_id ) {
-			$attachment_id = $this->get_attachment_id_from_url( $url );
+		if ( ! $referenced_id ) {
+			$referenced_id = $this->get_attachment_id_from_url( $url );
 		}
 
-		// Determine if external.
-		$is_external = ! $attachment_id && ! $this->is_local_url( $url );
+		// Validate that the attachment actually exists in the Media Library.
+		$attachment_id = null;
+		$is_orphaned   = false;
+
+		if ( $referenced_id ) {
+			$attachment = get_post( $referenced_id );
+			if ( $attachment && 'attachment' === $attachment->post_type ) {
+				$attachment_id = $referenced_id;
+			} else {
+				// The HTML references an attachment that no longer exists.
+				$is_orphaned = true;
+			}
+		}
+
+		// Determine if external (not local URL and no valid attachment).
+		$is_external = ! $attachment_id && ! $is_orphaned && ! $this->is_local_url( $url );
 
 		// Get filename from URL.
 		$filename = basename( wp_parse_url( $url, PHP_URL_PATH ) );
 
-		// If we have an attachment ID, get the stored alt text (may differ from inline alt).
+		// If we have a valid attachment ID, get the stored alt text (may differ from inline alt).
 		$stored_alt_text = $alt_text;
 		if ( $attachment_id ) {
 			$stored_alt_text = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
@@ -179,6 +202,8 @@ class ImageService {
 			'url'           => $url,
 			'alt_text'      => $stored_alt_text ?: null,
 			'is_external'   => $is_external,
+			'is_orphaned'   => $is_orphaned,
+			'referenced_id' => $is_orphaned ? $referenced_id : null,
 			'filename'      => $filename,
 		);
 	}

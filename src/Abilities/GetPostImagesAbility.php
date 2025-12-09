@@ -36,6 +36,7 @@ class GetPostImagesAbility extends AbstractAbility {
 			'total_images'       => $images_data['total_images'],
 			'images_with_alt'    => $images_data['images_with_alt'],
 			'images_without_alt' => $images_data['images_without_alt'],
+			'images_orphaned'    => $images_data['images_orphaned'],
 			'featured_image'     => $images_data['featured_image'],
 			'content_images'     => $images_data['content_images'],
 		);
@@ -95,7 +96,7 @@ class GetPostImagesAbility extends AbstractAbility {
 			'properties' => array(
 				'attachment_id' => array(
 					'type'        => array( 'integer', 'null' ),
-					'description' => __( 'Attachment ID (null if external image).', 'wp-abilities-seo-extension' ),
+					'description' => __( 'Attachment ID (null if external or orphaned image).', 'wp-abilities-seo-extension' ),
 				),
 				'url'           => array(
 					'type'        => 'string',
@@ -109,6 +110,14 @@ class GetPostImagesAbility extends AbstractAbility {
 				'is_external'   => array(
 					'type'        => 'boolean',
 					'description' => __( 'True if image is hosted externally (cannot be updated).', 'wp-abilities-seo-extension' ),
+				),
+				'is_orphaned'   => array(
+					'type'        => 'boolean',
+					'description' => __( 'True if image references a deleted/missing attachment (cannot be updated).', 'wp-abilities-seo-extension' ),
+				),
+				'referenced_id' => array(
+					'type'        => array( 'integer', 'null' ),
+					'description' => __( 'The attachment ID referenced in HTML (only set when is_orphaned is true, for debugging).', 'wp-abilities-seo-extension' ),
 				),
 				'filename'      => array(
 					'type'        => 'string',
@@ -139,6 +148,10 @@ class GetPostImagesAbility extends AbstractAbility {
 				'images_without_alt' => array(
 					'type'        => 'integer',
 					'description' => __( 'Count of images missing alt text.', 'wp-abilities-seo-extension' ),
+				),
+				'images_orphaned'    => array(
+					'type'        => 'integer',
+					'description' => __( 'Count of images referencing deleted/missing attachments.', 'wp-abilities-seo-extension' ),
 				),
 				'featured_image'     => array(
 					'oneOf'       => array(

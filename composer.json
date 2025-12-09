@@ -1,0 +1,24 @@
+{
+    "name": "nathanonn/wp-abilities-seo-extension",
+    "description": "Abilities API Extension for Rank Math SEO - Exposes SEO functionality through the WordPress Abilities API",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Nathan Onn",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "SeoAbilities\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

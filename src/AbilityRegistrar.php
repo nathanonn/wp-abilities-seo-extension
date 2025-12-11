@@ -20,6 +20,7 @@ use SeoAbilities\Abilities\FindPostsWithSeoIssuesAbility;
 use SeoAbilities\Abilities\GetPostImagesAbility;
 use SeoAbilities\Abilities\UpdateImageAltTextAbility;
 use SeoAbilities\Abilities\BulkUpdateImageAltTextAbility;
+use SeoAbilities\Abilities\GetPostContentAbility;
 
 /**
  * Registers all SEO ability categories and abilities with the WordPress Abilities API.
@@ -136,6 +137,7 @@ class AbilityRegistrar {
 		// SEO Analysis abilities.
 		$this->register_get_seo_score();
 		$this->register_find_posts_with_seo_issues();
+		$this->register_get_post_content();
 
 		// SEO Images abilities.
 		$this->register_get_post_images();
@@ -440,6 +442,39 @@ class AbilityRegistrar {
 		);
 	}
 
+	/**
+	 * Register get-post-content ability.
+	 *
+	 * @return void
+	 */
+	private function register_get_post_content(): void {
+		$ability = $this->create_ability( GetPostContentAbility::class );
+
+		wp_register_ability(
+			$this->ability_name( 'get-post-content' ),
+			array(
+				'label'               => __( 'Get Post Content', 'wp-abilities-seo-extension' ),
+				'description'         => __( 'Retrieves the full content and metadata of a specified post. Returns the raw post content (which may include HTML, shortcodes, or block markup), along with title, excerpt, word count, and dates. Use this ability to understand the context and content of a post for SEO analysis or content recommendations.', 'wp-abilities-seo-extension' ),
+				'category'            => 'seo-analysis',
+				'input_schema'        => GetPostContentAbility::get_input_schema(),
+				'output_schema'       => GetPostContentAbility::get_output_schema(),
+				'execute_callback'    => array( $ability, 'execute' ),
+				'permission_callback' => array( $this, 'check_edit_posts_permission' ),
+				'meta'                => array(
+					'show_in_rest' => true,
+					'mcp'          => array(
+						'public' => true,
+						'type'   => 'tool',
+					),
+					'annotations'  => array(
+						'readonly'    => true,
+						'destructive' => false,
+					),
+				),
+			)
+		);
+	}
+
 	// =========================================================================
 	// SEO Images Abilities
 	// =========================================================================
@@ -489,7 +524,7 @@ class AbilityRegistrar {
 			$this->ability_name( 'update-image-alt-text' ),
 			array(
 				'label'               => __( 'Update Image Alt Text', 'wp-abilities-seo-extension' ),
-				'description'         => __( 'Updates the alt text for a specific image in the WordPress Media Library. The attachment must be a valid image type (not a document or video). External images cannot be updated through this ability.', 'wp-abilities-seo-extension' ),
+				'description'         => __( 'Updates the alt text for a specific image in the WordPress Media Library and syncs it to all posts that use that image. The attachment must be a valid image type (not a document or video). External images cannot be updated through this ability.', 'wp-abilities-seo-extension' ),
 				'category'            => 'seo-images',
 				'input_schema'        => UpdateImageAltTextAbility::get_input_schema(),
 				'output_schema'       => UpdateImageAltTextAbility::get_output_schema(),
@@ -523,7 +558,7 @@ class AbilityRegistrar {
 			$this->ability_name( 'bulk-update-image-alt-text' ),
 			array(
 				'label'               => __( 'Bulk Update Image Alt Text', 'wp-abilities-seo-extension' ),
-				'description'         => __( 'Updates alt text for multiple images in a single operation. Each image receives its own unique alt text. Respects the configured maximum items limit (default: 10). Only images in the WordPress Media Library can be updated.', 'wp-abilities-seo-extension' ),
+				'description'         => __( 'Updates alt text for multiple images in a single operation and syncs each to all posts that use them. Each image receives its own unique alt text. Respects the configured maximum items limit (default: 10). Only images in the WordPress Media Library can be updated.', 'wp-abilities-seo-extension' ),
 				'category'            => 'seo-images',
 				'input_schema'        => BulkUpdateImageAltTextAbility::get_input_schema(),
 				'output_schema'       => BulkUpdateImageAltTextAbility::get_output_schema(),

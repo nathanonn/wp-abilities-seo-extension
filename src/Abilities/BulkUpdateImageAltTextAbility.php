@@ -60,14 +60,18 @@ class BulkUpdateImageAltTextAbility extends AbstractAbility {
 			// Get previous alt text.
 			$previous_alt_text = $this->image_service->get_alt_text( $attachment_id );
 
-			// Update alt text.
+			// Update alt text in media library.
 			$this->image_service->update_alt_text( $attachment_id, $alt_text );
+
+			// Sync alt text to all posts that use this image.
+			$posts_updated = $this->image_service->sync_alt_text_to_posts( $attachment_id, $alt_text );
 
 			$results[] = array(
 				'attachment_id'     => $attachment_id,
 				'success'           => true,
 				'previous_alt_text' => $previous_alt_text,
 				'new_alt_text'      => $alt_text,
+				'posts_updated'     => $posts_updated,
 				'error'             => null,
 			);
 			++$total_processed;
@@ -158,6 +162,11 @@ class BulkUpdateImageAltTextAbility extends AbstractAbility {
 							'new_alt_text'      => array(
 								'type'        => 'string',
 								'description' => __( 'New alt text (if successful).', 'wp-abilities-seo-extension' ),
+							),
+							'posts_updated'     => array(
+								'type'        => 'array',
+								'items'       => array( 'type' => 'integer' ),
+								'description' => __( 'Array of post IDs where the alt text was synced (if successful).', 'wp-abilities-seo-extension' ),
 							),
 							'error'             => array(
 								'type'        => array( 'string', 'null' ),

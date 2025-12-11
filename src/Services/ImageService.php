@@ -284,6 +284,133 @@ class ImageService {
 	}
 
 	/**
+	 * Find all posts that use a specific attachment in their content.
+	 *
+	 * Searches for posts containing images that reference the attachment ID
+	 * via wp-image-{id} class or data-id attribute.
+	 *
+	 * @param int $attachment_id Attachment ID to search for.
+	 * @return array Array of post IDs.
+	 */
+	public function find_posts_using_attachment( int $attachment_id ): array {
+		global $wpdb;
+
+		// Search for wp-image-{id} class pattern in post content.
+		$query = $wpdb->prepare(
+			"SELECT DISTINCT ID FROM {$wpdb->posts}
+			WHERE post_status = 'publish'
+			AND post_type NOT IN ('attachment', 'revision', 'nav_menu_item')
+			AND (
+				post_content LIKE %s
+				OR post_content LIKE %s
+			)",
+			'%wp-image-' . $attachment_id . '%',
+			'%data-id="' . $attachment_id . '"%'
+		);
+
+		$post_ids = $wpdb->get_col( $query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+		return array_map( 'intval', $post_ids );
+	}
+
+	/**
+	 * Update alt text in a specific post's content for a given attachment.
+	 *
+	 * Finds all img tags in the post content that reference the attachment
+	 * and updates their alt attribute.
+	 *
+	 * @param int    $post_id       Post ID to update.
+	 * @param int    $attachment_id Attachment ID to match.
+	 * @param string $alt_text      New alt text value.
+	 * @return bool True if post was updated, false otherwise.
+	 */
+	public function update_alt_text_in_post_content( int $post_id, int $attachment_id, string $alt_text ): bool {
+		$post = get_post( $post_id );
+
+		if ( ! $post ) {
+			return false;
+		}
+
+		$content     = $post->post_content;
+		$new_content = $this->replace_alt_text_in_content( $content, $attachment_id, $alt_text );
+
+		// If content didn't change, no need to update.
+		if ( $content === $new_content ) {
+			return false;
+		}
+
+		// Update the post.
+		$result = wp_update_post(
+			array(
+				'ID'           => $post_id,
+				'post_content' => $new_content,
+			),
+			true
+		);
+
+		return ! is_wp_error( $result );
+	}
+
+	/**
+	 * Replace alt text in content for img tags referencing a specific attachment.
+	 *
+	 * @param string $content       Post content.
+	 * @param int    $attachment_id Attachment ID to match.
+	 * @param string $alt_text      New alt text value.
+	 * @return string Modified content.
+	 */
+	private function replace_alt_text_in_content( string $content, int $attachment_id, string $alt_text ): string {
+		// Escape alt text for use in HTML attribute.
+		$escaped_alt = esc_attr( $alt_text );
+
+		// Pattern to match img tags with wp-image-{id} class or data-id="{id}".
+		$pattern = '/(<img\s[^>]*(?:class="[^"]*wp-image-' . $attachment_id . '[^"]*"|data-id="' . $attachment_id . '")[^>]*)(\/?>)/i';
+
+		return preg_replace_callback(
+			$pattern,
+			function ( $matches ) use ( $escaped_alt ) {
+				$img_tag = $matches[1];
+				$closing = $matches[2];
+
+				// Check if alt attribute already exists.
+				if ( preg_match( '/\salt=["\'][^"\']*["\']/', $img_tag ) ) {
+					// Replace existing alt attribute.
+					$img_tag = preg_replace( '/\salt=["\'][^"\']*["\']/', ' alt="' . $escaped_alt . '"', $img_tag );
+				} else {
+					// Add alt attribute before closing.
+					$img_tag .= ' alt="' . $escaped_alt . '"';
+				}
+
+				return $img_tag . $closing;
+			},
+			$content
+		);
+	}
+
+	/**
+	 * Sync alt text to all posts that use the attachment.
+	 *
+	 * Finds all posts containing the attachment and updates the alt text
+	 * in the inline img tags to match the media library.
+	 *
+	 * @param int    $attachment_id Attachment ID.
+	 * @param string $alt_text      New alt text value.
+	 * @return array Array of post IDs that were updated.
+	 */
+	public function sync_alt_text_to_posts( int $attachment_id, string $alt_text ): array {
+		$post_ids     = $this->find_posts_using_attachment( $attachment_id );
+		$updated_posts = array();
+
+		foreach ( $post_ids as $post_id ) {
+			if ( $this->update_alt_text_in_post_content( $post_id, $attachment_id, $alt_text ) ) {
+				$updated_posts[] = $post_id;
+			}
+		}
+
+		return $updated_posts;
+	}
+
+	/**
 	 * Try to get attachment ID from URL.
 	 *
 	 * @param string $url Image URL.

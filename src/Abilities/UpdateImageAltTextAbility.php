@@ -30,8 +30,11 @@ class UpdateImageAltTextAbility extends AbstractAbility {
 		// Get previous alt text.
 		$previous_alt_text = $this->image_service->get_alt_text( $attachment_id );
 
-		// Update alt text.
+		// Update alt text in media library.
 		$this->image_service->update_alt_text( $attachment_id, $alt_text );
+
+		// Sync alt text to all posts that use this image.
+		$posts_updated = $this->image_service->sync_alt_text_to_posts( $attachment_id, $alt_text );
 
 		// Get attachment data.
 		$attachment_data = $this->image_service->get_attachment_data( $attachment_id );
@@ -43,6 +46,7 @@ class UpdateImageAltTextAbility extends AbstractAbility {
 			'new_alt_text'      => $alt_text,
 			'image_url'         => $attachment_data['url'],
 			'image_filename'    => $attachment_data['filename'],
+			'posts_updated'     => $posts_updated,
 		);
 	}
 
@@ -103,6 +107,11 @@ class UpdateImageAltTextAbility extends AbstractAbility {
 				'image_filename'    => array(
 					'type'        => 'string',
 					'description' => __( 'Filename of the image.', 'wp-abilities-seo-extension' ),
+				),
+				'posts_updated'     => array(
+					'type'        => 'array',
+					'items'       => array( 'type' => 'integer' ),
+					'description' => __( 'Array of post IDs where the alt text was synced in the content.', 'wp-abilities-seo-extension' ),
 				),
 			),
 		);
